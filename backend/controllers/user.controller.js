@@ -54,17 +54,28 @@ export const register = async (req, res) => {
     try {
         const { fullName, email, phoneNumber, password, role } = req.body;
 
+        // Check for missing fields
         if (!fullName || !email || !phoneNumber || !password || !role) {
             return res.status(400).json({
-                message: "Something is missing",
+                message: "All fields are required",
                 success: false
             });
         }
 
+        // Check for missing file
         const file = req.file;
+        if (!file) {
+            return res.status(400).json({
+                message: "Profile image is required",
+                success: false
+            });
+        }
+
+        // Upload image to Cloudinary
         const fileUri = getDataUri(file);
         const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
 
+        // Check if user already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({
@@ -73,8 +84,10 @@ export const register = async (req, res) => {
             });
         }
 
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
+        // Create user
         const newUser = await User.create({
             fullName,
             email,
@@ -82,18 +95,15 @@ export const register = async (req, res) => {
             password: hashedPassword,
             role,
             profile: {
-                profilePhoto: cloudResponse.secure_url,
+                profilePhoto: cloudResponse.secure_url
             }
         });
 
-        // ✅ CREATE JWT TOKEN AND SET COOKIE
-        const tokenData = {
-            userId: newUser._id
-        };
-
+        // Generate JWT token
+        const tokenData = { userId: newUser._id };
         const token = jwt.sign(tokenData, process.env.SECRET_KEY);
 
-        // ✅ Send safe user data
+        // Prepare user data for frontend
         const userToSend = {
             _id: newUser._id,
             fullName: newUser.fullName,
@@ -103,12 +113,13 @@ export const register = async (req, res) => {
             profile: newUser.profile
         };
 
+        // Set token cookie and send response
         return res.status(201)
             .cookie("token", token, {
-                maxAge: 1 * 24 * 60 * 60 * 1000, // 1 day
+                maxAge: 24 * 60 * 60 * 1000, // 1 day
                 httpOnly: true,
                 sameSite: "strict",
-                // secure: true // Enable if using HTTPS in production
+                // secure: true // Uncomment in production with HTTPS
             })
             .json({
                 message: "Account created successfully",
@@ -117,13 +128,14 @@ export const register = async (req, res) => {
             });
 
     } catch (error) {
-        console.log(error);
+        console.error("Error during registration:", error);
         return res.status(500).json({
-            message: "Internal server error",
+            message: error.message || "Internal server error",
             success: false
         });
     }
 };
+
 
 //Login
 export const login = async (req, res) => {
