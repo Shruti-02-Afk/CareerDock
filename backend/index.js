@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
 const corsOptions = {
-    origin:"https://careerdock.onrender.com",
+    origin:["https://careerdock.onrender.com",  "http://localhost:3000"  ],
     credentials:true
 }
 app.use(cors(corsOptions));
